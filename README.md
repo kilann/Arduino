@@ -3,6 +3,7 @@ Arduino Project
 code for managing a chat door
 
 material:
+
   arduino nano
   rfid rc-522
   uln2003A *2
@@ -12,4 +13,4 @@ material:
   magnetic sensor KY-021
   1602 lcd whit i2c iic
   
-  work whit a clock to manage hour of exit
+work whit a clock to manage hour of exit
