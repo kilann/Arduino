@@ -1,6 +1,6 @@
 Arduino Project
 
-code for managing a chat door
+code for managing a cat door
 
 material:
 
