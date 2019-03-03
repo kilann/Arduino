@@ -1,7 +1,7 @@
 #include <SharpIR.h> // library ir
 #include <SPI.h>  // library rfid
 #include <MFRC522.h>  // library rfid
-#include <Stepper.h>  // library stepper motor
+#include <Servo.h>  // library stepper motor
 #include <LiquidCrystal_I2C.h> // library lcd
 
 #define STEPS 32  // setup nombre de step par rotation
@@ -21,10 +21,10 @@
 
 SharpIR IRSensor1(SharpIR::GP2Y0A41SK0F, A6 );  // Infrared sensor
 SharpIR IRSensor2(SharpIR::GP2Y0A41SK0F, A7);
-Stepper stepper1(STEPS, 5, 3, 4, 2); // stepper motor
-Stepper stepper2(STEPS, 14, 7, 8, 6);
-MFRC522 RfidSensor(SS_PIN, RST_PIN);  // setup rfid sensor
-LiquidCrystal_I2C lcd(0x27, 16, 2);  // setup lcd
+Servo Motor1;  // creating Servo Motor object
+Servo Motor2;
+MFRC522 RfidSensor(SS_PIN, RST_PIN);
+LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 int reelSwitch = 15; // magnetic senso rpin
 int switchState; // variable to store reel switch value
@@ -37,10 +37,16 @@ const int hs = A2;  // set pin to add Hour
 const int ms = A3;  // set pin to add minute
 int state1 = 0;  // variable read hs
 int state2 = 0;  // variable read ms
+int pos1 = 0;  //  variable to store Motor position
+int pos2 = 0;
 
-int MoveMotor(Stepper motor)  // create function for motor moving
+
+int MoveMotor(Servo motor,int pos)
 {
-  motor.step(512);  // move motor1
+	for (pos = 0; pos <= 90; pos += 1) //goes from 0 degrees to 180 degrees
+		{          // in steps of 1 degree
+			myservo.write(pos);     //tell servo to go to position in variable 'pos'
+		}
   delay(10000);
   s = s + 10;
 
@@ -49,8 +55,9 @@ int MoveMotor(Stepper motor)  // create function for motor moving
     delay(2000);
     s = s + 2;
   }
-
-  motor.step(-512);   //    fermeture du moteur 2
+	for (pos = 90; pos >= 0; pos -= 1) //goes from 180 degrees to 0 degrees
+		{
+			myservo.write(pos);     //tell servo to go to position in variable 'pos'
 }
 
 void setup() {
@@ -58,12 +65,12 @@ void setup() {
   Serial.begin(9600);  // start serial port
   SPI.begin();
   RfidSensor.PCD_Init();  // start rfid module
-  stepper1.setSpeed(200);  // set motor speed
-  stepper2.setSpeed(200);
-  pinMode (reelSwitch, INPUT);  // setup magnetic pin
-  pinMode(hs, INPUT_PULLUP);  // setup clock pushbouton
+  Motor1.attach(2);  // set motor speed
+  Motor2.attach(3);
+  pinMode (reelSwitch, INPUT);
+  pinMode(hs, INPUT_PULLUP);
   pinMode(ms, INPUT_PULLUP);
-  lcd.init();  // start lcd
+  lcd.init();
   lcd.backlight();
 }
 
@@ -136,10 +143,10 @@ void loop() {
 
   if (distance1 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance2 > 20)  // if distance and rfid are ok
   {
-    MoveMotor(stepper2);
+    MoveMotor(Motor2,pos2);
   }
   else if (distance2 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance1 > 20 && (h >= 6 && h < 23)) // if distance, rfid and Hour are ok
   {
-    MoveMotor(stepper1);
+    MoveMotor(Motor1,pos1);
   }
 }
