@@ -1,152 +1,284 @@
+//************libraries**************//
+#include <Wire.h>
+#include <LiquidCrystal_I2C.h> // library lcd
 #include <SharpIR.h> // library ir
 #include <SPI.h>  // library rfid
 #include <MFRC522.h>  // library rfid
 #include <Servo.h>  // library stepper motor
-#include <LiquidCrystal_I2C.h> // library lcd
 
+//************Define**************//
 #define STEPS 32  // setup nombre de step par rotation
 #define RST_PIN 9  // set rfid pin
 #define SS_PIN 10  // set rfid pin
 #define IR1 A6 // define signal pin
 #define IR2 A7
 #define model 430
-/*
-  2 to 15 cm GP2Y0A51SK0F  use 1080
-  4 to 30 cm GP2Y0A41SK0F / GP2Y0AF30 series  use 430
-  10 to 80 cm GP2Y0A21YK0F  use 1080
-  10 to 150 cm GP2Y0A60SZLF use 10150
-  20 to 150 cm GP2Y0A02YK0F use 20150
-  100 to 550 cm GP2Y0A710K0F  use 100550
-*/
 
+//************************************//
+LiquidCrystal_I2C lcd(0x27, 16, 2); // Display  I2C 16 x 2
 SharpIR IRSensor1(SharpIR::GP2Y0A41SK0F, A6 );  // Infrared sensor
 SharpIR IRSensor2(SharpIR::GP2Y0A41SK0F, A7);
 Servo Motor1;  // creating Servo Motor object
 Servo Motor2;
 MFRC522 RfidSensor(SS_PIN, RST_PIN);
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+
+//************Button*****************//
+int P1 = 7; // Button SET MENU'
+int P2 = 6; // Button +
+int P3 = 5; // Button -
+int ref = 8;
+
+//************Variables**************//
+int hours;
+int minutes;
+int seconds;
+int menu =0;
+
+int pos1 = 0;  //  variable to store Motor position
+int pos2 = 0;
 
 int reelSwitch = 15; // magnetic senso rpin
 int switchState; // variable to store reel switch value
 
-int h = 12;  // setup Heure
-int m = 0;  // setup minute
-int s = 0;  // setup seconde
-int TIME = 0;
-const int hs = A2;  // set pin to add Hour
-const int ms = A3;  // set pin to add minute
-int state1 = 0;  // variable read hs
-int state2 = 0;  // variable read ms
-int pos1 = 0;  //  variable to store Motor position
-int pos2 = 0;
-
-
-int MoveMotor(Servo motor,int pos)
+void setup()
 {
-	for (pos = 0; pos <= 90; pos += 1) //goes from 0 degrees to 180 degrees
-		{          // in steps of 1 degree
-			myservo.write(pos);     //tell servo to go to position in variable 'pos'
-		}
-  delay(10000);
-  s = s + 10;
+  lcd.init();
+  lcd.backlight();
+  lcd.clear();
 
-  while ((switchState = digitalRead(reelSwitch)) > 1) // wait for gate close
-  {
-    delay(2000);
-    s = s + 2;
-  }
-	for (pos = 90; pos >= 0; pos -= 1) //goes from 180 degrees to 0 degrees
-		{
-			myservo.write(pos);     //tell servo to go to position in variable 'pos'
-}
+  pinMode(P1,INPUT);
+  pinMode(P2,INPUT);
+  pinMode(P3,INPUT);
+  pinMode(ref,OUTPUT);
+  pinMode (reelSwitch, INPUT);
 
-void setup() {
-
-  Serial.begin(9600);  // start serial port
   SPI.begin();
   RfidSensor.PCD_Init();  // start rfid module
   Motor1.attach(2);  // set motor speed
   Motor2.attach(3);
-  pinMode (reelSwitch, INPUT);
-  pinMode(hs, INPUT_PULLUP);
-  pinMode(ms, INPUT_PULLUP);
-  lcd.init();
-  lcd.backlight();
+
+  Serial.begin(9600);
+  Wire.begin();
+    
+  int menu=0;
+}
+ 
+void loop()
+{
+
+  MenuSurveil();
+
+  switch (menu) 
+    {
+        case 0:
+        //do something when var equals 0
+            incTime();
+            DisplayDateTime();
+            break;
+        case 1:
+            DisplaySetHour();
+            break;
+        case 2:
+            DisplaySetMinute();
+            break;
+
+        default:
+            menu=0;
+        break;
+    }
+
+    if ( ! RfidSensor.PICC_IsNewCardPresent())  // if rfid card is present
+    {
+        return;
+    }
+
+    if ( ! RfidSensor.PICC_ReadCardSerial())  // if rfid card is read
+    {
+        return;
+    }
+    String UID = "";
+
+    for (byte i = 0; i < RfidSensor.uid.size; i++)  // setup rfid uid
+    {
+        UID.concat(String(RfidSensor.uid.uidByte[i] < 0x10 ? " 0" : " "));
+        UID.concat(String(RfidSensor.uid.uidByte[i], HEX));
+    }
+
+    UID.toUpperCase();
+
+    unsigned long startTime = millis(); // takes the time before the loop on the library begins
+
+    int distance1 = IRSensor1.getDistance(); // this returns the distance to the object you're measuring
+    int distance2 = IRSensor2.getDistance();
+
+    unsigned long endTime = millis() - startTime; // the following gives you the time taken to get the measurement
+
+
+    if (distance1 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance2 > 20)  // if distance and rfid are ok
+    {
+
+        for (pos2 = 0; pos2 <= 90; pos2 += 1) //goes from 0 degrees to 90 degrees
+        {          // in steps of 1 degree
+            Motor2.write(pos2);     //tell servo to go to position in variable 'pos'
+        }
+        delay(10000);
+        seconds = seconds + 10;
+
+        while ((switchState = digitalRead(reelSwitch)) > 1) // wait for gate close
+        {
+        delay(2000);
+        seconds = seconds + 2;
+        }
+        for (pos2 = 90; pos2 >= 0; pos2 -= 1) //goes from 90 degrees to 0 degrees
+        {
+            Motor2.write(pos2);     //tell servo to go to position in variable 'pos'
+        }
+    }
+    else if (distance2 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance1 > 20 && (hours >= 6 && hours < 23)) // if distance, rfid and Hour are ok
+    {
+
+        for (pos1 = 0; pos1 <= 90; pos1 += 1) //goes from 0 degrees to 90 degrees
+        {          // in steps of 1 degree
+            Motor1.write(pos2);     //tell servo to go to position in variable 'pos'
+        }
+        delay(10000);
+        seconds = seconds + 10;
+
+        while ((switchState = digitalRead(reelSwitch)) > 1) // wait for gate close
+        {
+        delay(2000);
+        seconds = seconds + 2;
+        }
+        for (pos1 = 90; pos1 >= 0; pos1 -= 1) //goes from 90 degrees to 0 degrees
+        {
+            Motor1.write(pos1);     //tell servo to go to position in variable 'pos'
+        }
+    }
 }
 
-void loop() {
-  s = s + 1;  // start clock
-  lcd.setCursor(0, 0);
-  lcd.print("TIME:" );
-  lcd.print(h);
-  lcd.print(":");
-  lcd.print(m);
-  lcd.print(":");
-  lcd.print(s);
-  delay(1000);
-  if (s >= 60)
+void MenuSurveil()
+{
+  digitalWrite(ref, LOW);
+  digitalWrite(P1,HIGH);
+  Serial.print(ref);
+  Serial.print(P1);
+  if(digitalRead(P1)== LOW)
   {
-    s = 0;
-    m = m + 1;
+    delay(100);
+    if (digitalRead(P1)== LOW)
+    {
+      Serial.print(P1);
+      menu++;
+    }
+    digitalWrite(ref, HIGH);
   }
-  if (m >= 60)
+}
+
+void DisplayDateTime()
+{
+    lcd.clear();
+
+    lcd.setCursor(6,1);
+    char time[17];
+    sprintf(time, "  %02i:%02i:%02i", hours, minutes, seconds);
+    lcd.print(time);
+}
+  
+void DisplaySetHour()
+{
+// Setting the hour
+  lcd.clear();
+  digitalWrite(ref, LOW);
+  digitalWrite(P2,HIGH);
+  digitalWrite(P3,HIGH);
+
+  if(digitalRead(P2)==LOW)
   {
-    m = 0;
-    h = h + 1;
+    if (hours==23)
+    {
+      hours=0;
+    }
+    else
+    {
+      hours=hours+1;
+    }
   }
-  if (h >= 24)
+   if(digitalRead(P3)==LOW)
   {
-    h = 0;
+    if (hours==0)
+    {
+      hours=23;
+    }
+    else
+    {
+      hours=hours-1;
+    }
   }
-  state1 = digitalRead(hs);  // if pushbouton press add 1h
-  if (state1 == 0)
+  lcd.setCursor(0,0);
+  lcd.print("Set hours:");
+  lcd.setCursor(0,1);
+  lcd.print(hours,DEC);
+  delay(200);
+}
+
+void DisplaySetMinute()
+{
+// Setting the minutes
+  lcd.clear();
+  digitalWrite(ref, LOW);
+  digitalWrite(P2,HIGH);
+  digitalWrite(P3,HIGH);
+
+  if(digitalRead(P2)==LOW)
   {
-    h = h + 1;
+    if (minutes==59)
+    {
+      minutes=0;
+    }
+    else
+    {
+      minutes=minutes+1;
+    }
+    seconds=0;
   }
-  state2 = digitalRead(ms);  // if pushbouton press add 1m and reset seconde
-  if (state2 == 0)
+   if(digitalRead(P3)==LOW)
   {
-    s = 0;
-    m = m + 1;
+    if (minutes==0)
+    {
+      minutes=59;
+    }
+    else
+    {
+      minutes=minutes-1;
+    }
+    seconds=0;
   }
+  lcd.setCursor(0,0);
+  lcd.print("Set minute:");
+  lcd.setCursor(0,1);
+  lcd.print(minutes,DEC);
+  delay(200);
+}
 
-  if ( ! RfidSensor.PICC_IsNewCardPresent())  // if rfid card is present
-  {
-    return;
-  }
+void incTime() {
+    
+    delay(690);
+    seconds++;
 
-  if ( ! RfidSensor.PICC_ReadCardSerial())  // if rfid card is read
-  {
-    return;
-  }
-  String UID = "";
+    if (seconds >= 60) 
+    {
+        seconds = seconds - 60;
+        minutes++;
 
-  for (byte i = 0; i < RfidSensor.uid.size; i++)  // setup rfid uid
-  {
-    UID.concat(String(RfidSensor.uid.uidByte[i] < 0x10 ? " 0" : " "));
-    UID.concat(String(RfidSensor.uid.uidByte[i], HEX));
-  }
+        if (minutes == 59) 
+        {
+        minutes = 0;
+        hours++;
 
-  UID.toUpperCase();
-
-
-  delay(1000);
-  s = s + 1;
-
-  unsigned long startTime = millis(); // takes the time before the loop on the library begins
-
-  int distance1 = IRSensor1.getDistance(); // this returns the distance to the object you're measuring
-  int distance2 = IRSensor2.getDistance();
-
-  unsigned long endTime = millis() - startTime; // the following gives you the time taken to get the measurement
-
-
-  if (distance1 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance2 > 20)  // if distance and rfid are ok
-  {
-    MoveMotor(Motor2,pos2);
-  }
-  else if (distance2 <= 20 && (UID.substring(1) == "UID Kitty" || UID.substring(1) == "UID Indy") && distance1 > 20 && (h >= 6 && h < 23)) // if distance, rfid and Hour are ok
-  {
-    MoveMotor(Motor1,pos1);
-  }
+        if (hours == 23) 
+        {
+            hours = 0;
+        }
+    }
+    }
 }
